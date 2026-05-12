@@ -14,7 +14,7 @@ export interface Schedule {
 export interface Preferences {
   interests: Interest[];
   exclusions: string[];
-  length_min: 5 | 10 | 20;
+  length_min: 2 | 4 | 7;
   tone: "conversational" | "formal" | "energetic";
   voice_id: string;
   schedule: Schedule;

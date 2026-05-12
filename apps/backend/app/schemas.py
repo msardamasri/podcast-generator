@@ -24,7 +24,7 @@ class GenerateRequest(BaseModel):
     """Body for POST /api/v1/podcasts/generate."""
     interests: list[InterestInput] = Field(..., min_length=1, max_length=20)
     exclusions: list[str] = Field(default_factory=list, max_length=20)
-    length_min: Literal[5, 10, 20] = 10
+    length_min: Literal[2, 4, 7] = 4
     tone: Literal["conversational", "formal", "energetic"] = "conversational"
     voice_id: str = "21m00Tcm4TlvDq8ikWAM"
     since_hours: int = Field(default=24, ge=1, le=168)
@@ -64,7 +64,7 @@ class PreferencesResponse(BaseModel):
     """Body returned by GET /api/v1/preferences."""
     interests: list[InterestInput]
     exclusions: list[str]
-    length_min: Literal[5, 10, 20]
+    length_min: Literal[2, 4, 7] = 4
     tone: Literal["conversational", "formal", "energetic"]
     voice_id: str
     schedule: ScheduleConfig
@@ -76,7 +76,7 @@ class PreferencesUpdate(BaseModel):
     For now we treat it as full replacement to keep things simple."""
     interests: list[InterestInput] = Field(..., min_length=1, max_length=30)
     exclusions: list[str] = Field(default_factory=list, max_length=30)
-    length_min: Literal[5, 10, 20] = 10
+    length_min: Literal[2, 4, 7] = 4
     tone: Literal["conversational", "formal", "energetic"] = "conversational"
     voice_id: str = "21m00Tcm4TlvDq8ikWAM"
     schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)

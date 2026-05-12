@@ -42,7 +42,7 @@ class PipelineConfig(BaseModel):
     """
     interests: list[Interest]
     exclusions: list[str] = Field(default_factory=list)
-    length_min: Literal[5, 10, 20] = 10
+    length_min: Literal[2, 4, 7] = 4
     tone: Literal["conversational", "formal", "energetic"] = "conversational"
     voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel — ElevenLabs default
     max_articles: int = 8

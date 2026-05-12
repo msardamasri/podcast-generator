@@ -2,13 +2,25 @@
 
 Each class maps to a table. Relationships use SQLAlchemy 2.0 typed syntax
 with Mapped[...] annotations — gives mypy and IDEs proper type info.
+
+All timestamps use DateTime(timezone=True) so they're stored as
+TIMESTAMP WITH TIME ZONE in Postgres — clients receive UTC ISO strings
+with explicit offset, which JS Date() parses correctly into local time.
 """
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, BigInteger, ForeignKey, Index, String, Text, func
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -30,7 +42,9 @@ class User(Base):
     id: Mapped[uuid.UUID] = _uuid_pk()
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
 
     preferences: Mapped["Preferences | None"] = relationship(
@@ -51,14 +65,19 @@ class Preferences(Base):
     )
     interests: Mapped[list[dict]] = mapped_column(JSONB, default=list, nullable=False)
     exclusions: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
-    length_min: Mapped[int] = mapped_column(default=10, nullable=False)
-    tone: Mapped[str] = mapped_column(String(32), default="conversational", nullable=False)
+    length_min: Mapped[int] = mapped_column(default=4, nullable=False)
+    tone: Mapped[str] = mapped_column(
+        String(32), default="conversational", nullable=False
+    )
     voice_id: Mapped[str] = mapped_column(String(64), nullable=False)
     schedule: Mapped[dict] = mapped_column(
         JSONB, default=lambda: {"type": "on_demand"}, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )
 
     user: Mapped["User"] = relationship(back_populates="preferences")
@@ -74,7 +93,9 @@ class Podcast(Base):
         nullable=False,
     )
     title: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(32), default="pending", nullable=False
+    )
     stage_progress: Mapped[float] = mapped_column(default=0.0, nullable=False)
     audio_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     duration_sec: Mapped[int | None] = mapped_column(nullable=True)
@@ -83,13 +104,20 @@ class Podcast(Base):
     cost_cents: Mapped[int] = mapped_column(default=0, nullable=False)
     token_usage: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
-    ready_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    ready_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     user: Mapped["User"] = relationship(back_populates="podcasts")
     segments: Mapped[list["Segment"]] = relationship(
-        back_populates="podcast", cascade="all, delete-orphan", order_by="Segment.idx"
+        back_populates="podcast",
+        cascade="all, delete-orphan",
+        order_by="Segment.idx",
     )
 
     __table_args__ = (
@@ -119,9 +147,12 @@ class Segment(Base):
 
 class Event(Base):
     """Append-only event log. The dashboard queries off this."""
+
     __tablename__ = "events"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True, autoincrement=True
+    )
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -135,7 +166,9 @@ class Event(Base):
     type: Mapped[str] = mapped_column(String(64), nullable=False)
     properties: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
 
     __table_args__ = (

@@ -25,9 +25,9 @@ const VOICES = [
 ];
 
 const LENGTHS = [
-  { value: 5 as const, label: "Short", desc: "~3–5 min" },
-  { value: 10 as const, label: "Medium", desc: "~6–9 min" },
-  { value: 20 as const, label: "Long", desc: "~12–18 min" },
+  { value: 2 as const, label: "Quick", desc: "~2 min · headlines" },
+  { value: 4 as const, label: "Standard", desc: "~4 min · daily briefing" },
+  { value: 7 as const, label: "Deep", desc: "~6 min · context & analysis" },
 ];
 
 const TONES = [

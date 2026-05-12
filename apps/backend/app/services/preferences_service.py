@@ -7,14 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import Event, Preferences
-from ..schemas import PreferencesResponse, PreferencesUpdate, ScheduleConfig
+from ..schemas import InterestInput, PreferencesResponse, PreferencesUpdate, ScheduleConfig
 
 
-# Defaults applied when a user has no preferences row yet
 DEFAULT_PREFS = PreferencesUpdate(
-    interests=[{"label": "technology", "weight": 1.0}],
+    interests=[InterestInput(label="technology", weight=1.0)],
     exclusions=[],
-    length_min=10,
+    length_min=4,
     tone="conversational",
     voice_id="21m00Tcm4TlvDq8ikWAM",
 )
@@ -27,7 +26,7 @@ async def get_preferences(user_id: uuid.UUID, db: AsyncSession) -> PreferencesRe
         return PreferencesResponse(**DEFAULT_PREFS.model_dump())
 
     return PreferencesResponse(
-        interests=row.interests,
+        interests=[InterestInput(**i) for i in row.interests],
         exclusions=row.exclusions,
         length_min=row.length_min,
         tone=row.tone,
@@ -65,7 +64,7 @@ async def update_preferences(
     await db.refresh(row)
 
     return PreferencesResponse(
-        interests=row.interests,
+        interests=[InterestInput(**i) for i in row.interests],
         exclusions=row.exclusions,
         length_min=row.length_min,
         tone=row.tone,

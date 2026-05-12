@@ -20,7 +20,7 @@ SCRIPT_MODEL = "gpt-4o-mini"
 
 # Words per minute when read aloud at a natural pace.
 # Used to convert "length_min" → approximate word counts per section.
-WORDS_PER_MINUTE = 200
+WORDS_PER_MINUTE = 180
 
 
 # ---------------------------------------------------------------------------
@@ -139,12 +139,19 @@ text-to-speech engine, so the script must sound natural when read out loud.
 VOICE AND TONE:
 {tone_guide}
 
-LENGTH TARGET:
-The full episode should be about {length_min} minutes of spoken audio, which is \
-roughly {total_words} words. Plan for:
-- Intro: ~80-120 words
+LENGTH TARGET — CRITICAL:
+This episode MUST be {length_min} minutes when spoken aloud.
+At 200 spoken words per minute, that means you need to write APPROXIMATELY \
+{total_words} TOTAL WORDS. Not a paragraph less.
+
+Word budget per section:
+- Intro: ~{int(total_words * 0.08)} words (cold-open hook + one-line agenda)
 - Each of the {num_segments} segments: ~{words_per_segment} words
-- Outro: ~50-80 words
+- Outro: ~{int(total_words * 0.05)} words
+
+If you produce significantly less than {total_words} words total, you have failed \
+the task. DO NOT stop early. Each segment should give the story enough room to breathe: \
+context, the news itself, specific details (numbers, names, quotes), and a real take.
 
 Vary segment length within that average. The most important story gets more time.
 
@@ -272,7 +279,8 @@ async def generate_script(
                 "schema": SCRIPT_SCHEMA,
             },
         },
-        temperature=0.7,  # some creativity, but not chaotic
+        temperature=0.7,
+        max_completion_tokens=8000,
     )
 
     raw = response.choices[0].message.content

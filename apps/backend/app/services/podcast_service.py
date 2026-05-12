@@ -1,64 +1,141 @@
 """Podcast generation orchestration.
 
-This is the seam between HTTP routing and the pipeline package.
-Routers call this; this calls the pipeline.
-
-Keeping it here means we can later add Celery, caching, or persistence
-without changing the routers.
+Bridges HTTP routing and the pipeline package. Persists results to the DB
+so we can list and analyze podcasts later.
 """
 from __future__ import annotations
 
+import logging
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from pipeline.cli import run_pipeline
 from pipeline.config import Interest, PipelineConfig
 from pipeline.types import PipelineResult
 
 from ..config import settings
+from ..models import Event, Podcast, Segment
 from ..schemas import GenerateRequest, GenerateResponse, SegmentResponse
 
+logger = logging.getLogger(__name__)
 
-async def generate_podcast(request: GenerateRequest) -> GenerateResponse:
-    """Run the full pipeline and return metadata about the generated podcast.
 
-    Audio is written to disk under AUDIO_STORAGE_PATH; the response includes
-    a path the frontend can use to stream it.
-    """
-    # Each podcast gets a UUID-named file to avoid collisions
+async def generate_podcast(
+    request: GenerateRequest,
+    user_id: uuid.UUID,
+    db: AsyncSession,
+) -> GenerateResponse:
+    """Run the pipeline, persist results, return metadata."""
     podcast_id = uuid.uuid4()
     storage_dir = Path(settings.audio_storage_path)
     storage_dir.mkdir(parents=True, exist_ok=True)
     output_path = storage_dir / f"{podcast_id}.mp3"
 
-    # Build pipeline config from request
-    config = PipelineConfig(
-        interests=[Interest(label=i.label, weight=i.weight) for i in request.interests],
-        exclusions=request.exclusions,
-        length_min=request.length_min,
-        tone=request.tone,
-        voice_id=request.voice_id,
-        max_articles=request.max_articles,
-        since_hours=request.since_hours,
-        output_path=str(output_path.absolute()),
+    # Insert a 'pending' podcast row immediately so we can track failures.
+    # Once we have Celery, this row's status will be updated by the worker.
+    podcast = Podcast(
+    id=podcast_id,
+    user_id=user_id,
+    status="generating",
     )
+    db.add(podcast)
+    await db.flush()  # ensure podcast row exists before referencing it from events
 
-    result: PipelineResult = await run_pipeline(config)
+    db.add(Event(
+        user_id=user_id,
+        podcast_id=podcast_id,
+        type="podcast_requested",
+        properties={
+            "length_min": request.length_min,
+            "tone": request.tone,
+            "n_interests": len(request.interests),
+        },
+    ))
+    await db.commit()
 
-    return GenerateResponse(
-        audio_path=str(podcast_id) + ".mp3",  # relative path served by /audio endpoint
-        duration_sec=result.duration_sec,
-        transcript=result.transcript,
-        segments=[
-            SegmentResponse(
+    try:
+        config = PipelineConfig(
+            interests=[Interest(label=i.label, weight=i.weight) for i in request.interests],
+            exclusions=request.exclusions,
+            length_min=request.length_min,
+            tone=request.tone,
+            voice_id=request.voice_id,
+            max_articles=request.max_articles,
+            since_hours=request.since_hours,
+            output_path=str(output_path.absolute()),
+        )
+
+        result: PipelineResult = await run_pipeline(config)
+
+        # Update the podcast row with the actual results
+        podcast.status = "ready"
+        podcast.audio_path = f"{podcast_id}.mp3"
+        podcast.duration_sec = result.duration_sec
+        podcast.transcript = result.transcript
+        podcast.cost_cents = result.cost_cents
+        podcast.token_usage = result.token_usage
+        podcast.ready_at = datetime.now(timezone.utc)
+        podcast.title = result.segments[0].title if result.segments else None
+
+        # Persist segments for drop-off analytics
+        for seg in result.segments:
+            db.add(Segment(
+                podcast_id=podcast_id,
                 idx=seg.idx,
                 title=seg.title,
                 source_url=seg.source_url,
                 source_outlet=seg.source_outlet,
+                text=seg.text,
                 start_sec=seg.start_sec,
                 end_sec=seg.end_sec,
-            )
-            for seg in result.segments
-        ],
-        cost_cents=result.cost_cents,
-    )
+            ))
+
+        db.add(Event(
+            user_id=user_id,
+            podcast_id=podcast_id,
+            type="podcast_completed",
+            properties={
+                "duration_sec": result.duration_sec,
+                "n_segments": len(result.segments),
+                "cost_cents": result.cost_cents,
+            },
+        ))
+        await db.commit()
+
+        logger.info("Podcast %s ready — %ds, %d segments",
+                    podcast_id, result.duration_sec, len(result.segments))
+
+        return GenerateResponse(
+            audio_path=podcast.audio_path,
+            duration_sec=result.duration_sec,
+            transcript=result.transcript,
+            segments=[
+                SegmentResponse(
+                    idx=seg.idx,
+                    title=seg.title,
+                    source_url=seg.source_url,
+                    source_outlet=seg.source_outlet,
+                    start_sec=seg.start_sec,
+                    end_sec=seg.end_sec,
+                )
+                for seg in result.segments
+            ],
+            cost_cents=result.cost_cents,
+        )
+
+    except Exception as exc:
+        # Mark the podcast as failed and re-raise — FastAPI converts to 500
+        podcast.status = "failed"
+        podcast.error = str(exc)[:1000]
+        db.add(Event(
+            user_id=user_id,
+            podcast_id=podcast_id,
+            type="podcast_failed",
+            properties={"error": str(exc)[:500]},
+        ))
+        await db.commit()
+        logger.exception("Podcast %s failed", podcast_id)
+        raise

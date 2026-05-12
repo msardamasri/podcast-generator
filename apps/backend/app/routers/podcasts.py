@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from ..config import settings
+from ..deps import CurrentUserId, DBSession
 from ..schemas import GenerateRequest, GenerateResponse
 from ..services.podcast_service import generate_podcast
 
@@ -17,26 +18,23 @@ router = APIRouter(prefix="/api/v1/podcasts", tags=["podcasts"])
 
 
 @router.post("/generate", response_model=GenerateResponse)
-async def generate(request: GenerateRequest) -> GenerateResponse:
+async def generate(
+    request: GenerateRequest,
+    user_id: CurrentUserId,
+    db: DBSession,
+) -> GenerateResponse:
     """Generate a podcast synchronously.
 
-    WARNING: This takes 30-60s. In production we use Celery to make
-    this fire-and-forget. For now, kept sync to validate the full pipeline
-    integration end-to-end before adding async machinery.
+    WARNING: This takes 30-60s. We'll move it to Celery next.
     """
-    logger.info("Generating podcast with %d interests, length=%d",
-                len(request.interests), request.length_min)
-    return await generate_podcast(request)
+    logger.info("Generating podcast for user=%s, length=%d",
+                user_id, request.length_min)
+    return await generate_podcast(request, user_id=user_id, db=db)
 
 
 @router.get("/audio/{filename}")
 async def get_audio(filename: str) -> FileResponse:
-    """Stream a generated audio file.
-
-    Supports HTTP Range requests via FileResponse — so the audio player
-    can seek without downloading the whole file.
-    """
-    # Basic path traversal protection
+    """Stream a generated audio file."""
     if "/" in filename or "\\" in filename or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 

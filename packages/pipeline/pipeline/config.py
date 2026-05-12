@@ -5,6 +5,12 @@ from typing import Callable, Literal, Optional
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+import os
+from pathlib import Path
+
+current_file_path = Path(__file__).resolve()
+root_env = current_file_path.parent.parent.parent.parent / ".env"
+package_env = current_file_path.parent.parent / ".env"
 
 class Settings(BaseSettings):
     """Environment-driven secrets and infra config.

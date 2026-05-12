@@ -11,6 +11,13 @@ from .routers import podcasts
 
 from .config import settings
 
+import uuid
+
+from sqlalchemy import select
+
+from .db import AsyncSessionLocal
+from .models import User
+
 
 logging.basicConfig(
     level=settings.log_level,
@@ -21,12 +28,26 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown hooks.
-
-    Runs once when the app starts and once when it stops.
-    Used for DB connection pools, background task setup, etc.
-    """
+    """Startup and shutdown hooks."""
     logger.info("Backend starting up — env=%s", settings.app_env)
+
+    # Ensure the demo user exists. For the take-home we operate with a
+    # single user; in production this would come from auth.
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(User).where(User.email == settings.default_user_email)
+        )
+        user = result.scalar_one_or_none()
+        if user is None:
+            user = User(email=settings.default_user_email)
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
+            logger.info("Created demo user %s", user.id)
+        else:
+            logger.info("Using existing demo user %s", user.id)
+        app.state.demo_user_id = user.id
+
     yield
     logger.info("Backend shutting down")
 

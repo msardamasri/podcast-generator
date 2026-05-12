@@ -22,6 +22,13 @@ from ..db import SessionLocal
 from ..models import Event, Podcast, Segment
 from .celery_app import celery_app
 
+from datetime import date
+from zoneinfo import ZoneInfo
+
+from sqlalchemy import select
+
+from ..models import Preferences, User
+
 logger = logging.getLogger(__name__)
 
 
@@ -141,3 +148,139 @@ def generate_podcast_task(
         raise  # re-raise so Celery marks the task as FAILED
     finally:
         db.close()
+
+
+@celery_app.task(name="check_user_schedules")
+def check_user_schedules() -> dict:
+    """Walk all users with active schedules; enqueue generation if it's their time.
+
+    Runs every minute via Celery Beat. Idempotent: tracks the last generation date
+    per user, so it never fires twice in the same day.
+    """
+    db = SessionLocal()
+    enqueued = 0
+    skipped = 0
+    try:
+        # Pull all users with non-on_demand schedules
+        stmt = select(User, Preferences).join(Preferences, User.id == Preferences.user_id)
+        rows = db.execute(stmt).all()
+
+        for user, prefs in rows:
+            schedule = prefs.schedule or {}
+            schedule_type = schedule.get("type", "on_demand")
+
+            if schedule_type == "on_demand":
+                skipped += 1
+                continue
+
+            if not _is_due_now(schedule):
+                skipped += 1
+                continue
+
+            if _already_generated_today(db, user.id, schedule.get("tz", "UTC")):
+                skipped += 1
+                continue
+
+            # Time to fire. Reuse the same enqueue path as the manual endpoint.
+            _enqueue_scheduled_podcast(db, user, prefs)
+            enqueued += 1
+
+        return {"enqueued": enqueued, "skipped": skipped}
+    finally:
+        db.close()
+
+
+def _is_due_now(schedule: dict) -> bool:
+    """True if the scheduled time has arrived today and we haven't fired yet.
+
+    Uses a 'time has passed' check rather than exact minute match, so we
+    don't miss the window if Beat fires a few seconds off. Idempotency
+    against duplicate runs is handled by `_already_generated_today`.
+    """
+    tz_name = schedule.get("tz", "UTC")
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = ZoneInfo("UTC")
+
+    now = datetime.now(tz)
+    target_hour = schedule.get("hour")
+    target_minute = schedule.get("minute", 0)
+
+    if target_hour is None:
+        return False
+
+    if schedule.get("type") == "weekly":
+        target_weekday = schedule.get("weekday")
+        if target_weekday is None or now.weekday() != target_weekday:
+            return False
+
+    # Has the scheduled time already passed today?
+    scheduled_today = now.replace(
+        hour=target_hour, minute=target_minute, second=0, microsecond=0
+    )
+    return now >= scheduled_today
+
+
+def _already_generated_today(db, user_id: uuid.UUID, tz_name: str) -> bool:
+    """Have we already generated a podcast for this user today (in their tz)?"""
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = ZoneInfo("UTC")
+
+    today_in_tz = datetime.now(tz).date()
+
+    # Look at most recent podcast; if its created_at (converted to user tz) is today, skip
+    stmt = (
+        select(Podcast)
+        .where(Podcast.user_id == user_id)
+        .order_by(Podcast.created_at.desc())
+        .limit(1)
+    )
+    last = db.execute(stmt).scalar_one_or_none()
+    if last is None:
+        return False
+
+    last_local_date = last.created_at.astimezone(tz).date()
+    return last_local_date == today_in_tz
+
+
+def _enqueue_scheduled_podcast(db, user: User, prefs: Preferences) -> None:
+    """Insert a pending Podcast row and dispatch the generation task."""
+    podcast_id = uuid.uuid4()
+    podcast = Podcast(
+        id=podcast_id,
+        user_id=user.id,
+        status="pending",
+    )
+    db.add(podcast)
+    db.flush()  # ensure podcast exists before event references it
+
+    db.add(Event(
+        user_id=user.id,
+        podcast_id=podcast_id,
+        type="podcast_requested",
+        properties={
+            "length_min": prefs.length_min,
+            "tone": prefs.tone,
+            "trigger": "schedule",
+        },
+    ))
+    db.commit()
+
+    generate_podcast_task.apply_async(
+        kwargs={
+            "podcast_id": str(podcast_id),
+            "user_id": str(user.id),
+            "interests": prefs.interests,
+            "exclusions": prefs.exclusions,
+            "length_min": prefs.length_min,
+            "tone": prefs.tone,
+            "voice_id": prefs.voice_id,
+            "max_articles": 6,
+            "since_hours": 24,
+        }
+    )
+
+    logger.info("Scheduled podcast %s queued for user %s", podcast_id, user.id)

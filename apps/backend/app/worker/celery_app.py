@@ -43,4 +43,15 @@ celery_app.conf.update(
     # For our pipeline it's overkill but it's a safe default.
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=50,
+
 )
+
+# Beat schedule: tasks that run periodically.
+# 'check_schedules' fires every minute, walks active user schedules,
+# and enqueues generation tasks for any whose time has come.
+celery_app.conf.beat_schedule = {
+    "check-user-schedules": {
+        "task": "check_user_schedules",
+        "schedule": 60.0,
+    },
+}

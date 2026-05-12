@@ -106,6 +106,53 @@ services:
     # On Linux containers we use the prefork pool (default), not 'solo'
     command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=2
 
+  beat:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: podcast-beat
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg://podcast:podcast_dev_password@postgres:5432/podcast
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+      NEWSAPI_KEY: ${NEWSAPI_KEY:-}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      APP_ENV: development
+      LOG_LEVEL: INFO
+      AUDIO_STORAGE_PATH: /data/audio
+    volumes:
+      - ./apps/backend/app:/app/apps/backend/app
+      - ./packages/pipeline/pipeline:/app/packages/pipeline/pipeline
+      - audio_data:/data/audio
+    command: celery -A app.worker.celery_app beat --loglevel=info
+
+  frontend:
+      build:
+        context: .
+        dockerfile: apps/frontend/Dockerfile
+      container_name: podcast-frontend
+      depends_on:
+        - api
+      ports:
+        - "5173:5173"
+      volumes:
+        - ./apps/frontend/src:/app/src
+        - ./apps/frontend/index.html:/app/index.html
+        - ./apps/frontend/vite.config.ts:/app/vite.config.ts
+        - ./apps/frontend/tailwind.config.js:/app/tailwind.config.js
+        - ./apps/frontend/postcss.config.js:/app/postcss.config.js
+        - ./apps/frontend/tsconfig.json:/app/tsconfig.json
+      environment:
+        CHOKIDAR_USEPOLLING: "true"
+  
 volumes:
   postgres_data:
   audio_data:

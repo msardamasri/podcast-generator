@@ -10,6 +10,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+import uuid
+from datetime import datetime
+
 
 class InterestInput(BaseModel):
     """One interest from the user."""
@@ -45,3 +48,68 @@ class GenerateResponse(BaseModel):
     transcript: str
     segments: list[SegmentResponse]
     cost_cents: int
+
+# ---------- Preferences ----------
+
+class ScheduleConfig(BaseModel):
+    """When the podcast should be generated automatically."""
+    type: Literal["on_demand", "daily", "weekly"] = "on_demand"
+    hour: int | None = Field(default=None, ge=0, le=23)
+    minute: int | None = Field(default=None, ge=0, le=59)
+    weekday: int | None = Field(default=None, ge=0, le=6)  # 0=Monday
+    tz: str = "Europe/Madrid"
+
+
+class PreferencesResponse(BaseModel):
+    """Body returned by GET /api/v1/preferences."""
+    interests: list[InterestInput]
+    exclusions: list[str]
+    length_min: Literal[5, 10, 20]
+    tone: Literal["conversational", "formal", "energetic"]
+    voice_id: str
+    schedule: ScheduleConfig
+
+
+class PreferencesUpdate(BaseModel):
+    """Body for PUT /api/v1/preferences. Same shape as response, but
+    allows the user to send only what they want to change in the future.
+    For now we treat it as full replacement to keep things simple."""
+    interests: list[InterestInput] = Field(..., min_length=1, max_length=30)
+    exclusions: list[str] = Field(default_factory=list, max_length=30)
+    length_min: Literal[5, 10, 20] = 10
+    tone: Literal["conversational", "formal", "energetic"] = "conversational"
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM"
+    schedule: ScheduleConfig = Field(default_factory=ScheduleConfig)
+
+
+# ---------- Podcasts (list + detail) ----------
+
+class PodcastSummary(BaseModel):
+    """Body item for GET /api/v1/podcasts."""
+    id: uuid.UUID
+    title: str | None
+    status: str
+    duration_sec: int | None
+    created_at: datetime
+    ready_at: datetime | None
+
+
+class PodcastListResponse(BaseModel):
+    """Body for GET /api/v1/podcasts."""
+    items: list[PodcastSummary]
+    total: int
+
+
+class PodcastDetail(BaseModel):
+    """Body for GET /api/v1/podcasts/{id}."""
+    id: uuid.UUID
+    title: str | None
+    status: str
+    duration_sec: int | None
+    audio_path: str | None
+    transcript: str | None
+    error: str | None
+    cost_cents: int
+    created_at: datetime
+    ready_at: datetime | None
+    segments: list[SegmentResponse]

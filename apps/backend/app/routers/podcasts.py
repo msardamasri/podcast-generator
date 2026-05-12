@@ -7,10 +7,18 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
+import uuid
+from fastapi import HTTPException, Query
+
 from ..config import settings
 from ..deps import CurrentUserId, DBSession
-from ..schemas import GenerateRequest, GenerateResponse
-from ..services.podcast_service import generate_podcast
+from ..schemas import (
+    GenerateRequest,
+    GenerateResponse,
+    PodcastDetail,
+    PodcastListResponse,
+)
+from ..services.podcast_service import generate_podcast, get_podcast, list_podcasts
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +38,30 @@ async def generate(
     logger.info("Generating podcast for user=%s, length=%d",
                 user_id, request.length_min)
     return await generate_podcast(request, user_id=user_id, db=db)
+
+
+@router.get("", response_model=PodcastListResponse)
+async def list_user_podcasts(
+    user_id: CurrentUserId,
+    db: DBSession,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> PodcastListResponse:
+    """List the current user's podcasts, newest first."""
+    return await list_podcasts(user_id, db, limit=limit, offset=offset)
+
+
+@router.get("/{podcast_id}", response_model=PodcastDetail)
+async def get_user_podcast(
+    podcast_id: uuid.UUID,
+    user_id: CurrentUserId,
+    db: DBSession,
+) -> PodcastDetail:
+    """Return a single podcast with its segments and transcript."""
+    podcast = await get_podcast(podcast_id, user_id, db)
+    if podcast is None:
+        raise HTTPException(status_code=404, detail="Podcast not found")
+    return podcast
 
 
 @router.get("/audio/{filename}")

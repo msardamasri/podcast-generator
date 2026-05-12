@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import podcasts
+from .routers import podcasts, preferences
 
 from .config import settings
 
@@ -69,6 +69,7 @@ app.add_middleware(
 )
 
 app.include_router(podcasts.router)
+app.include_router(preferences.router)
 
 @app.get("/health")
 async def health_check() -> dict[str, str]:

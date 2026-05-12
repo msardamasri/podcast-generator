@@ -51,3 +51,38 @@ export interface EnqueueResponse {
   task_id: string;
   status: string;
 }
+
+// ---------- Admin metrics ----------
+
+export interface KPIMetrics {
+  total_podcasts: number;
+  success_rate: number;
+  avg_duration_sec: number;
+  avg_cost_cents: number;
+  total_failures: number;
+}
+
+export interface TimeSeriesPoint {
+  date: string;
+  completed: number;
+  failed: number;
+}
+
+export interface OutletShare {
+  outlet: string;
+  count: number;
+}
+
+export interface EventLog {
+  id: number;
+  type: string;
+  properties: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AdminMetrics {
+  kpis: KPIMetrics;
+  timeseries: TimeSeriesPoint[];
+  outlets: OutletShare[];
+  recent_events: EventLog[];
+}

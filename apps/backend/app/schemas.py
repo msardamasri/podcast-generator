@@ -119,3 +119,37 @@ class EnqueueResponse(BaseModel):
     podcast_id: uuid.UUID
     task_id: str
     status: str
+
+# ---------- Admin metrics ----------
+
+class KPIMetrics(BaseModel):
+    total_podcasts: int
+    success_rate: float  # 0-1
+    avg_duration_sec: float
+    avg_cost_cents: float
+    total_failures: int
+
+
+class TimeSeriesPoint(BaseModel):
+    date: str  # YYYY-MM-DD
+    completed: int
+    failed: int
+
+
+class OutletShare(BaseModel):
+    outlet: str
+    count: int
+
+
+class EventLog(BaseModel):
+    id: int
+    type: str
+    properties: dict
+    created_at: datetime
+
+
+class AdminMetrics(BaseModel):
+    kpis: KPIMetrics
+    timeseries: list[TimeSeriesPoint]
+    outlets: list[OutletShare]
+    recent_events: list[EventLog]

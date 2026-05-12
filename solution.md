@@ -1,11 +1,10 @@
-# Personal Podcast Generator — Solution
+# Personal Podcast Generator
 
-A take-home for Prosper AI. Generates personalized news podcasts from a curated
-set of sources, on a user-configured schedule. Pulls news, ranks it against the
-listener's interests, drafts a script with GPT, synthesizes audio with
-ElevenLabs, and stitches everything into an MP3.
+**disclaimer -> this project is part of a take-home assignment**
 
-## TL;DR
+This app generates personalized news podcasts from a curated set of sources, on a user-configured schedule or on-demand. The main workflow is the following one: pulls news, ranks it against the listener's interests, drafts a script with GPT, synthesizes audio withElevenLabs, and stitches everything into an MP3.
+
+## TL;DR setup
 
 ```bash
 cp .env.example .env       # add OPENAI_API_KEY, ELEVENLABS_API_KEY, NEWSAPI_KEY, FIRECRAWL_API_KEY
@@ -19,7 +18,7 @@ Then:
 - **Admin metrics:** http://localhost:5173/admin
 
 Configure topics + a schedule under `/preferences`. Click *Generate now* or
-wait for the scheduled time — Celery Beat fires automatic generations.
+wait for the scheduled time (Celery Beat fires automatic generations).
 
 ## Architecture
 

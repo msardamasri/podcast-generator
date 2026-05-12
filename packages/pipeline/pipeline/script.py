@@ -20,7 +20,7 @@ SCRIPT_MODEL = "gpt-4o-mini"
 
 # Words per minute when read aloud at a natural pace.
 # Used to convert "length_min" → approximate word counts per section.
-WORDS_PER_MINUTE = 150
+WORDS_PER_MINUTE = 200
 
 
 # ---------------------------------------------------------------------------

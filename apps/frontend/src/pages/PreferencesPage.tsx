@@ -25,9 +25,9 @@ const VOICES = [
 ];
 
 const LENGTHS = [
-  { value: 5 as const, label: "Short", desc: "~3 min" },
-  { value: 10 as const, label: "Medium", desc: "~7 min" },
-  { value: 20 as const, label: "Long", desc: "~15 min" },
+  { value: 5 as const, label: "Short", desc: "~3–5 min" },
+  { value: 10 as const, label: "Medium", desc: "~6–9 min" },
+  { value: 20 as const, label: "Long", desc: "~12–18 min" },
 ];
 
 const TONES = [
@@ -103,45 +103,43 @@ export function PreferencesPage() {
 
       <div className="space-y-12">
         <Section
-          title="Topics"
-          desc="Pick what you want to hear about. Add custom ones below."
-        >
-          <div className="flex flex-wrap gap-2 mb-6">
-            {PRESET_TOPICS.map((topic) => {
-              const active = !!draft.interests.find((i) => i.label === topic);
-              return (
-                <button
-                  key={topic}
-                  onClick={() => toggleTopic(topic)}
-                  className={cn("chip", active ? "chip-active" : "chip-default")}
-                >
-                  {active && <Check size={12} strokeWidth={3} />}
-                  {topic}
-                </button>
-              );
-            })}
-          </div>
+            title="Topics"
+            desc="Pick what you want to hear about. Add custom ones below."
+            >
+            <div className="flex flex-wrap gap-2 mb-6">
+                {/* Preset chips */}
+                {PRESET_TOPICS.map((topic) => {
+                const active = !!draft.interests.find((i) => i.label === topic);
+                return (
+                    <button
+                    key={topic}
+                    onClick={() => toggleTopic(topic)}
+                    className={cn("chip", active ? "chip-active" : "chip-default")}
+                    >
+                    {active && <Check size={12} strokeWidth={3} />}
+                    {topic}
+                    </button>
+                );
+                })}
 
-          <div className="space-y-3">
-            {draft.interests.filter((i) => !PRESET_TOPICS.includes(i.label))
-              .length > 0 && (
-              <div className="flex flex-wrap gap-2">
+                {/* Custom interests — also rendered as active chips with a remove X */}
                 {draft.interests
-                  .filter((i) => !PRESET_TOPICS.includes(i.label))
-                  .map((i) => (
-                    <RemovableChip
-                      key={i.label}
-                      label={i.label}
-                      onRemove={() => removeInterest(i.label)}
-                    />
-                  ))}
-              </div>
-            )}
-            <InlineInput
-              placeholder="Add custom topic…"
-              onAdd={addCustom}
-            />
-          </div>
+                .filter((i) => !PRESET_TOPICS.includes(i.label))
+                .map((i) => (
+                    <span key={i.label} className="chip chip-active group">
+                    <Check size={12} strokeWidth={3} />
+                    {i.label}
+                    <button
+                        onClick={() => removeInterest(i.label)}
+                        className="ml-1 opacity-70 hover:opacity-100"
+                    >
+                        <X size={12} />
+                    </button>
+                    </span>
+                ))}
+            </div>
+
+            <InlineInput placeholder="Add custom topic…" onAdd={addCustom} />
         </Section>
 
         <Section

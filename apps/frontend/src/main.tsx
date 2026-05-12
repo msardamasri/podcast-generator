@@ -6,6 +6,7 @@ import { Layout } from "@/components/Layout";
 import { Library } from "@/pages/Library";
 import { PreferencesPage } from "@/pages/PreferencesPage";
 import { Admin } from "@/pages/Admin";
+import { Landing } from "@/pages/Landing";
 import "./index.css";
 
 const qc = new QueryClient({
@@ -18,7 +19,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
-            <Route index element={<Library />} />
+            <Route index element={<Landing />} />
+            <Route path="library" element={<Library />} />
             <Route path="preferences" element={<PreferencesPage />} />
             <Route path="admin" element={<Admin />} />
           </Route>

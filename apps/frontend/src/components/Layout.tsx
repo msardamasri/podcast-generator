@@ -27,7 +27,7 @@ export function Layout() {
         </div>
 
         <nav className="flex flex-col gap-0.5 px-3 flex-1">
-          <NavLink to="/" end className={navItem}>
+          <NavLink to="/library" end className={navItem}>
             {({ isActive }) => (
               <>
                 {isActive && (

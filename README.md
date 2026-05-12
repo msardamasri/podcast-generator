@@ -4,7 +4,7 @@ Generates personalized news podcasts on a schedule based on user interests.
 
 ## Quick start
 
-\```bash
+\```
 cp .env.example .env  # fill in API keys
 docker compose up -d  # postgres + redis + api + worker
 cd apps/web && npm install && npm run dev

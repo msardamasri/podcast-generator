@@ -1,0 +1,36 @@
+# Virtual envs (se reinstalan en el contenedor)
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+
+# Node
+**/node_modules
+**/dist
+
+# Audio output (los podcasts se generan dentro del contenedor)
+**/data/audio/*.mp3
+**/output.mp3
+**/*.wav
+
+# Git / IDE
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+# Env files (las pasamos via compose env vars, NO copiamos al image)
+.env
+**/.env
+**/.env.local
+
+# Pipeline scratch / test files
+**/scratch.py
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+
+# Docs y archivos sueltos
+*.md
+!README.md

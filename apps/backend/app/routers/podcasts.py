@@ -14,30 +14,31 @@ from ..config import settings
 from ..deps import CurrentUserId, DBSession
 from ..schemas import (
     GenerateRequest,
-    GenerateResponse,
+    EnqueueResponse,
     PodcastDetail,
     PodcastListResponse,
 )
-from ..services.podcast_service import generate_podcast, get_podcast, list_podcasts
+from ..services.podcast_service import enqueue_podcast, get_podcast, list_podcasts
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/podcasts", tags=["podcasts"])
 
 
-@router.post("/generate", response_model=GenerateResponse)
+@router.post("/generate", response_model=EnqueueResponse, status_code=202)
 async def generate(
     request: GenerateRequest,
     user_id: CurrentUserId,
     db: DBSession,
-) -> GenerateResponse:
-    """Generate a podcast synchronously.
+) -> EnqueueResponse:
+    """Enqueue a podcast generation. Returns immediately with a podcast_id.
 
-    WARNING: This takes 30-60s. We'll move it to Celery next.
+    Poll GET /api/v1/podcasts/{podcast_id} to track progress.
     """
-    logger.info("Generating podcast for user=%s, length=%d",
+    logger.info("Enqueueing podcast for user=%s, length=%d",
                 user_id, request.length_min)
-    return await generate_podcast(request, user_id=user_id, db=db)
+    result = await enqueue_podcast(request, user_id=user_id, db=db)
+    return EnqueueResponse(**result)
 
 
 @router.get("", response_model=PodcastListResponse)

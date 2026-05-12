@@ -3,9 +3,9 @@ services:
     image: postgres:16-alpine
     container_name: podcast-postgres
     environment:
-      POSTGRES_USER: podcast
-      POSTGRES_PASSWORD: podcast_dev_password
-      POSTGRES_DB: podcast
+      POSTGRES_USER: ${POSTGRES_USER:-podcast}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-podcast_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-podcast}
     ports:
       - "5432:5432"
     volumes:
@@ -27,5 +27,85 @@ services:
       timeout: 3s
       retries: 5
 
+  # One-shot: run migrations before api/worker startmigrate:
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: podcast-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://podcast:podcast_dev_password@postgres:5432/podcast
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+      NEWSAPI_KEY: ${NEWSAPI_KEY:-}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+    command: alembic upgrade head
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: podcast-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg://podcast:podcast_dev_password@postgres:5432/podcast
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+      NEWSAPI_KEY: ${NEWSAPI_KEY:-}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      APP_ENV: development
+      LOG_LEVEL: INFO
+      AUDIO_STORAGE_PATH: /data/audio
+    ports:
+      - "8000:8000"
+    volumes:
+      # Hot reload: mount source code, override the COPY from the image
+      - ./apps/backend/app:/app/apps/backend/app
+      - ./packages/pipeline/pipeline:/app/packages/pipeline/pipeline
+      # Persistent audio storage
+      - audio_data:/data/audio
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: podcast-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg://podcast:podcast_dev_password@postgres:5432/podcast
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+      NEWSAPI_KEY: ${NEWSAPI_KEY:-}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      APP_ENV: development
+      LOG_LEVEL: INFO
+      AUDIO_STORAGE_PATH: /data/audio
+    volumes:
+      - ./apps/backend/app:/app/apps/backend/app
+      - ./packages/pipeline/pipeline:/app/packages/pipeline/pipeline
+      - audio_data:/data/audio
+    # On Linux containers we use the prefork pool (default), not 'solo'
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=2
+
 volumes:
   postgres_data:
+  audio_data:

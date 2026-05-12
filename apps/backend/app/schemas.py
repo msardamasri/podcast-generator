@@ -113,3 +113,9 @@ class PodcastDetail(BaseModel):
     created_at: datetime
     ready_at: datetime | None
     segments: list[SegmentResponse]
+
+class EnqueueResponse(BaseModel):
+    """Body for POST /api/v1/podcasts/generate (now async)."""
+    podcast_id: uuid.UUID
+    task_id: str
+    status: str

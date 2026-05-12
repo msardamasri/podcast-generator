@@ -26,26 +26,27 @@ from ..schemas import GenerateRequest, GenerateResponse, SegmentResponse, Podcas
 logger = logging.getLogger(__name__)
 
 
-async def generate_podcast(
+async def enqueue_podcast(
     request: GenerateRequest,
     user_id: uuid.UUID,
     db: AsyncSession,
-) -> GenerateResponse:
-    """Run the pipeline, persist results, return metadata."""
-    podcast_id = uuid.uuid4()
-    storage_dir = Path(settings.audio_storage_path)
-    storage_dir.mkdir(parents=True, exist_ok=True)
-    output_path = storage_dir / f"{podcast_id}.mp3"
+) -> dict:
+    """Create a 'pending' podcast row and enqueue the generation task.
 
-    # Insert a 'pending' podcast row immediately so we can track failures.
-    # Once we have Celery, this row's status will be updated by the worker.
+    Returns immediately with the podcast_id — the actual work happens
+    in the Celery worker. Client polls /podcasts/{id} to track progress.
+    """
+    from ..worker.tasks import generate_podcast_task  # local import to avoid circular
+
+    podcast_id = uuid.uuid4()
+
     podcast = Podcast(
-    id=podcast_id,
-    user_id=user_id,
-    status="generating",
+        id=podcast_id,
+        user_id=user_id,
+        status="pending",
     )
     db.add(podcast)
-    await db.flush()  # ensure podcast row exists before referencing it from events
+    await db.flush()
 
     db.add(Event(
         user_id=user_id,
@@ -59,89 +60,28 @@ async def generate_podcast(
     ))
     await db.commit()
 
-    try:
-        config = PipelineConfig(
-            interests=[Interest(label=i.label, weight=i.weight) for i in request.interests],
-            exclusions=request.exclusions,
-            length_min=request.length_min,
-            tone=request.tone,
-            voice_id=request.voice_id,
-            max_articles=request.max_articles,
-            since_hours=request.since_hours,
-            output_path=str(output_path.absolute()),
-        )
+    # Enqueue. apply_async returns immediately — the worker picks it up.
+    task = generate_podcast_task.apply_async(
+        kwargs={
+            "podcast_id": str(podcast_id),
+            "user_id": str(user_id),
+            "interests": [i.model_dump() for i in request.interests],
+            "exclusions": request.exclusions,
+            "length_min": request.length_min,
+            "tone": request.tone,
+            "voice_id": request.voice_id,
+            "max_articles": request.max_articles,
+            "since_hours": request.since_hours,
+        }
+    )
 
-        result: PipelineResult = await run_pipeline(config)
+    logger.info("Enqueued podcast %s as task %s", podcast_id, task.id)
 
-        # Update the podcast row with the actual results
-        podcast.status = "ready"
-        podcast.audio_path = f"{podcast_id}.mp3"
-        podcast.duration_sec = result.duration_sec
-        podcast.transcript = result.transcript
-        podcast.cost_cents = result.cost_cents
-        podcast.token_usage = result.token_usage
-        podcast.ready_at = datetime.now(timezone.utc)
-        podcast.title = result.segments[0].title if result.segments else None
-
-        # Persist segments for drop-off analytics
-        for seg in result.segments:
-            db.add(Segment(
-                podcast_id=podcast_id,
-                idx=seg.idx,
-                title=seg.title,
-                source_url=seg.source_url,
-                source_outlet=seg.source_outlet,
-                text=seg.text,
-                start_sec=seg.start_sec,
-                end_sec=seg.end_sec,
-            ))
-
-        db.add(Event(
-            user_id=user_id,
-            podcast_id=podcast_id,
-            type="podcast_completed",
-            properties={
-                "duration_sec": result.duration_sec,
-                "n_segments": len(result.segments),
-                "cost_cents": result.cost_cents,
-            },
-        ))
-        await db.commit()
-
-        logger.info("Podcast %s ready — %ds, %d segments",
-                    podcast_id, result.duration_sec, len(result.segments))
-
-        return GenerateResponse(
-            audio_path=podcast.audio_path,
-            duration_sec=result.duration_sec,
-            transcript=result.transcript,
-            segments=[
-                SegmentResponse(
-                    idx=seg.idx,
-                    title=seg.title,
-                    source_url=seg.source_url,
-                    source_outlet=seg.source_outlet,
-                    start_sec=seg.start_sec,
-                    end_sec=seg.end_sec,
-                )
-                for seg in result.segments
-            ],
-            cost_cents=result.cost_cents,
-        )
-
-    except Exception as exc:
-        # Mark the podcast as failed and re-raise — FastAPI converts to 500
-        podcast.status = "failed"
-        podcast.error = str(exc)[:1000]
-        db.add(Event(
-            user_id=user_id,
-            podcast_id=podcast_id,
-            type="podcast_failed",
-            properties={"error": str(exc)[:500]},
-        ))
-        await db.commit()
-        logger.exception("Podcast %s failed", podcast_id)
-        raise
+    return {
+        "podcast_id": str(podcast_id),
+        "task_id": task.id,
+        "status": "pending",
+    }
 
 
 async def list_podcasts(

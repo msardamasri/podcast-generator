@@ -1,7 +1,12 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[codz]
-*$py.class
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # C extensions
 *.so
@@ -216,3 +221,34 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node
+node_modules/
+dist/
+.next/
+
+# Env files (NEVER commit these)
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Generated audio (large binaries, don't commit)
+*.mp3
+*.wav
+output/
+audio_cache/
+
+# Logs
+*.log
+logs/
+
+# Alembic generated SQL dumps
+*.sql.bak
+
+scratch.py

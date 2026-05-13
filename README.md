@@ -23,11 +23,13 @@ See [solution.md](./solution.md) for the full write-up, architecture diagram, de
 
 ## Project layout
 
+```text
 podcast-generator/
 ├── packages/pipeline/      # Core generation: fetch → rank → script → TTS → stitch
 ├── apps/backend/           # FastAPI + Celery worker + Celery Beat scheduler
 ├── apps/frontend/          # React + Vite (Library, Preferences, Admin)
 └── docker-compose.yml      # postgres · redis · migrate · api · worker · beat · frontend
+```
 
 ## Stack
 

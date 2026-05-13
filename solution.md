@@ -23,7 +23,7 @@ wait for the scheduled time (Celery Beat fires automatic generations).
 
 ## Architecture
 
-![Architecture diagram](./docs/architecture.png)
+![Architecture diagram](./docs/architecture.jpg)
 
 Seven containers orchestrated by Compose: `postgres`, `redis`, `migrate`
 (one-shot), `api`, `worker`, `beat`, `frontend`.

@@ -19,7 +19,7 @@ Open Preferences, pick a few topics and a schedule, click *Save*. Then either hi
 
 ## Architecture
 
-See [solution.md](./solution.md) for the full write-up — architecture diagram, design decisions, trade-offs and known limitations.
+See [solution.md](./solution.md) for the full write-up, architecture diagram, design decisions, trade-offs and known limitations.
 
 ## Project layout
 

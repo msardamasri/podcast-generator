@@ -37,7 +37,7 @@ The core generation logic lives in its own Python package (`packages/pipeline/`)
 Three callers use the same code:
 
 1. The Celery worker (production path)
-2. A CLI (`python -m pipeline ...` — useful for ad-hoc generation, prompt iteration, debugging)
+2. A CLI (`python -m pipeline ...` useful for ad-hoc generation, prompt iteration, debugging)
 3. Tests (no infra needed)
 
 This was the first decision and the most important one. Generating a podcast takes 30–60s and binding that logic to the HTTP layer would have made everything slower, harder to test, and impossible to schedule.

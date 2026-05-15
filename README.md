@@ -11,9 +11,9 @@ docker compose up
 
 Seven containers spin up (~30s on first run): `postgres`, `redis`, `migrate`, `api`, `worker`, `beat`, `frontend`.
 
-- **Web UI** — http://localhost:5173
-- **API docs** — http://localhost:8000/docs
-- **Admin dashboard** — http://localhost:5173/admin
+- **Web UI**: http://localhost:5173
+- **API docs**: http://localhost:8000/docs
+- **Admin dashboard**: http://localhost:5173/admin
 
 Open Preferences, pick topics and a schedule, save. Hit *Generate now* in Library or wait for the scheduler.
 
@@ -21,7 +21,7 @@ Open Preferences, pick topics and a schedule, save. Hit *Generate now* in Librar
 
 ![Architecture diagram](./docs/architecture.jpg)
 
-The core generation logic lives in `packages/pipeline/` — a standalone Python package with zero dependencies on FastAPI or Celery. It takes a `PipelineConfig` and returns a `PipelineResult`. Three things call it: the Celery worker, a CLI (`python -m pipeline`), and tests. Keeping it decoupled means the 30–60s generation job never blocks an HTTP request and can be tested without any infra running.
+The core generation logic lives in `packages/pipeline/`, a standalone Python package with zero dependencies on FastAPI or Celery. It takes a `PipelineConfig` and returns a `PipelineResult`. Three things call it: the Celery worker, a CLI (`python -m pipeline`), and tests. Keeping it decoupled means the 30–60s generation job never blocks an HTTP request and can be tested without any infra running.
 
 `POST /api/v1/podcasts/generate` inserts a `pending` row, enqueues a Celery task, and returns 202 in ~200ms. The worker runs the pipeline and updates `status` + `stage_progress` via a callback; the frontend polls every 2s. Celery Beat fires `check_user_schedules` every 60s to kick off scheduled generations.
 
@@ -31,7 +31,7 @@ The core generation logic lives in `packages/pipeline/` — a standalone Python 
 |------:|--------|-------|
 | 1 | RSS (TechCrunch, BBC, Ars Technica, NPR, CNBC, …) | Free and fast |
 | 2 | NewsAPI `/everything` with domain whitelist | Filters out PR sites and job boards |
-| 3 | Firecrawl `/scrape` | Runs *after* ranking — only on top-N articles to save credits |
+| 3 | Firecrawl `/scrape` | Runs *after* ranking, only on top-N articles to save credits |
 
 ### Ranking
 
@@ -39,11 +39,11 @@ Two-stage scoring: cosine similarity between article embeddings and the user's w
 
 ### Script generation
 
-GPT-4o-mini with `response_format={"type": "json_schema", "strict": true}` — guaranteed valid JSON, no regex fallbacks. Prompt is example-driven to get a natural voice rather than a news-reader tone.
+GPT-4o-mini with `response_format={"type": "json_schema", "strict": true}`, which guarantees valid JSON with no regex fallbacks. Prompt is example-driven to get a natural voice rather than a news-reader tone.
 
 ### Storage
 
-Postgres 16 — users, preferences, podcasts, segments, and an append-only `events` table (`podcast_requested`, `podcast_completed`, `podcast_failed`, `preferences_updated`). Admin dashboard runs `GROUP BY` queries directly on events (fine at this scale; production would materialize daily aggregates). SQLAlchemy 2.0 async + Alembic for migrations, Redis 7 as Celery broker/backend, audio on a local volume (S3 in production).
+Postgres 16 stores users, preferences, podcasts, segments, and an append-only `events` table (`podcast_requested`, `podcast_completed`, `podcast_failed`, `preferences_updated`). Admin dashboard runs `GROUP BY` queries directly on events (fine at this scale; production would materialize daily aggregates). SQLAlchemy 2.0 async + Alembic for migrations, Redis 7 as Celery broker/backend, audio on a local volume (S3 in production).
 
 ## Project layout
 
@@ -92,4 +92,4 @@ podcast-generator/
 - **Cost telemetry:** `avg_cost` in the admin dashboard is mocked; production would track OpenAI tokens and ElevenLabs characters per run.
 - **Pagination:** offset-based works at current volume; keyset pagination needed at tens of thousands of episodes per user.
 - **Feedback loop:** per-segment thumbs-up/down as a ranking signal + prompt A/B testing with thumbs-up rate as the metric.
-- **Multi-language:** ElevenLabs `eleven_multilingual_v2` already supports it — needs a language selector and localized prompts.
+- **Multi-language:** ElevenLabs `eleven_multilingual_v2` already supports it, just needs a language selector and localized prompts.

@@ -252,3 +252,6 @@ logs/
 *.sql.bak
 
 scratch.py
+
+# Claude Code
+.claude/
